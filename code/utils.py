@@ -5,6 +5,7 @@ import sys
 import yaml
 import pandas as pd
 import numpy as np
+import torch
 
 def preprocess(train_dir, test_label_file):
 
@@ -18,6 +19,9 @@ def preprocess(train_dir, test_label_file):
     for idx, row in edges_tsv.iterrows():
         edges.append(row.to_list())
     config['n_edge'] = len(edges)
+    edges=np.transpore(array(edges,dtype = long))
+    edge_index=edges[[0,1]]
+    edge_attr=np.transpore(edges[[2]])
     
     # read features
     features_tsv = pd.read_csv(os.path.join(train_dir, 'feature.tsv'), sep='\t', header=0)
@@ -25,6 +29,7 @@ def preprocess(train_dir, test_label_file):
     for idx, row in features_tsv.iterrows():
         features.append(row.to_list()[1:]) # exclude the node_index
     assert len(features) == features_tsv.shape[0]
+    config['n_feature'] = len(features)
     features = np.array(features, dtype=float)
 
     config['n_vertex'] = features.shape[0]
@@ -46,8 +51,10 @@ def preprocess(train_dir, test_label_file):
         vtx, clas = row.to_list()
         labels[vtx] = clas
         test_mask[vtx] = 1
+
+    # config['n_class']=##to be added
         
-    return config, features, edges, labels, train_mask, test_mask
+    return config, features, edge_index, edge_attr, labels, train_mask, test_mask
 
 def split(train_mask, ratio=0.1): # ratio: the ratio of eval set
     tmp = train_mask.copy()

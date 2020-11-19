@@ -19,11 +19,11 @@ def main():
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     args = parser.parse_args()
 
-    config, features, edges, labels, train_mask, test_mask = preprocess(args.train_data_dir, args.test_label_file)
+    config, features, edge_index, edge_attr, labels, train_mask, test_mask = preprocess(args.train_data_dir, args.test_label_file)
     train_mask, eval_mask = split(train_mask, ratio=0.1)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = GCNNet(config['n_feature'],config['n_class']).to(device)
-    data = Data(x=features,edge_index=edges, y=labels, train_mask=train_mask,test_mask=test_mask, eval_mask = eval_mask)##to be modified
+    data = Data(x=features,edge_index=edge_index, edge_attr=edge_attr, y=labels, train_mask=train_mask,test_mask=test_mask, eval_mask = eval_mask)##to be modified
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     model.train()
     for epoch in range(args.maxepoch):
