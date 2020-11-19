@@ -19,9 +19,9 @@ def preprocess(train_dir, test_label_file):
     for idx, row in edges_tsv.iterrows():
         edges.append(row.to_list())
     config['n_edge'] = len(edges)
-    edges=np.transpore(array(edges,dtype = long))
+    edges=edges.T##need type long
     edge_index=edges[[0,1]]
-    edge_attr=np.transpore(edges[[2]])
+    edge_attr=edges[[2]].T
     
     # read features
     features_tsv = pd.read_csv(os.path.join(train_dir, 'feature.tsv'), sep='\t', header=0)

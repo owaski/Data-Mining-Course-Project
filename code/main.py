@@ -22,8 +22,8 @@ def main():
     config, features, edge_index, edge_attr, labels, train_mask, test_mask = preprocess(args.train_data_dir, args.test_label_file)
     train_mask, eval_mask = split(train_mask, ratio=0.1)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = GCNNet(config['n_feature'],config['n_class']).to(device)
-    data = Data(x=features,edge_index=edge_index, edge_attr=edge_attr, y=labels, train_mask=train_mask,test_mask=test_mask, eval_mask = eval_mask)##to be modified
+    model = GCNNet(num_feature=config['n_feature'], num_class=config['n_class']).to(device)
+    data = Data(x=features,edge_index=edge_index, edge_attr=edge_attr, y=labels, train_mask=train_mask,test_mask=test_mask, eval_mask = eval_mask)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     model.train()
     for epoch in range(args.maxepoch):
