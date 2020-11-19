@@ -3,10 +3,14 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 
 class GCNNet(torch.nn.Module):
-    def __init__(self, num_feature, num_class):
+    def __init__(self, num_layers=2, hidden=16, num_feature, num_class):
         super(GCNNet, self).__init__()
-        self.conv1 = GCNConv(num_feature, 16)
-        self.conv2 = GCNConv(16, num_class)
+        self.conv1 = GCNConv(num_feature, hidden)
+        self.conv2 = GCNConv(hidden, num_class)
+
+    def reset_parameters(self):
+        self.conv1.reset_parameters()
+        self.conv2.reset_parameters()
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
