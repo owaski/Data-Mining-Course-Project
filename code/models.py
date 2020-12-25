@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Linear
-from torch_geometric.nn import GCNConv, GATConv, SAGEConv
+from torch_geometric.nn import GCNConv, GATConv, SAGEConv, TAGConv
 
 class GCNNet(nn.Module):
     def __init__(self, num_feature, num_class, num_layers=2, hidden=64, drop=0.5, use_edge_weight=True):
@@ -65,9 +65,9 @@ class GCN_Linear(nn.Module):
 class GATNet(nn.Module):
     def __init__(self, num_feature, num_class, num_layers=2, hidden=64, drop=0.5, use_edge_weight=True):
         super(GATNet, self).__init__()
-        self.conv0 = GATConv(num_feature, hidden)
-        self.conv1 = GATConv(hidden, hidden)
-        self.conv2 = GATConv(hidden, num_class)
+        self.conv0 = GATConv(num_feature, hidden,heads=8)
+        self.conv1 = GATConv(hidden, hidden,heads=8)
+        self.conv2 = GATConv(hidden, num_class,heads=8)
         self.n_layer = num_layers
         self.use_edge_weight = use_edge_weight
         self.drop = drop
@@ -95,8 +95,8 @@ class GATNet(nn.Module):
 class GAT_Linear(nn.Module):
     def __init__(self, num_feature, num_class, num_layers=2, hidden=64, drop=0.5, use_edge_weight=True):
         super(GAT_Linear, self).__init__()
-        self.conv0 = GATConv(num_feature, hidden)
-        self.conv1 = GATConv(hidden, hidden)
+        self.conv0 = GATConv(num_feature, hidden,heads=8)
+        self.conv1 = GATConv(hidden, hidden,heads=8)
         self.n_layer = num_layers
         self.linear = Linear(hidden, num_class)
         self.use_edge_weight = use_edge_weight
@@ -155,6 +155,64 @@ class SAGE_Linear(nn.Module):
         super(SAGE_Linear, self).__init__()
         self.conv0 = SAGEConv(num_feature, hidden)
         self.conv1 = SAGEConv(hidden, hidden)
+        self.n_layer = num_layers
+        self.linear = Linear(hidden, num_class)
+        self.use_edge_weight = use_edge_weight
+        self.drop = drop
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, data):
+        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr.squeeze(1)
+
+        for i in range(self.n_layer):
+            conv = self.conv0 if i == 0 else self.conv1
+            x = conv(x, edge_index, edge_weight) if self.use_edge_weight else \
+                conv(x, edge_index)
+            x = F.elu(x)
+            x = F.dropout(x, p=self.drop, training=self.training)
+
+        x = self.linear(x)
+
+        return F.log_softmax(x, dim=1)
+
+class TAGNet(nn.Module):
+    def __init__(self, num_feature, num_class, num_layers=2, hidden=64, drop=0.5, use_edge_weight=True):
+        super(TAGNet, self).__init__()
+        self.conv0 = TAGConv(num_feature, hidden,K=K)
+        self.conv1 = TAGConv(hidden, hidden,K=k)
+        self.conv2 = TAGConv(hidden, num_class,K=k)
+        self.n_layer = num_layers
+        self.use_edge_weight = use_edge_weight
+        self.drop = drop
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, data):
+        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr.squeeze(1)
+
+        for i in range(self.n_layer - 1):
+            conv = self.conv0 if i == 0 else self.conv1
+            x = conv(x, edge_index, edge_weight) if self.use_edge_weight else \
+                conv(x, edge_index)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.drop, training=self.training)
+
+        x = self.conv2(x, edge_index, edge_weight) if self.use_edge_weight else \
+            self.conv2(x, edge_index)
+
+        return F.log_softmax(x, dim=1)
+
+
+class TAG_Linear(nn.Module):
+    def __init__(self, num_feature, num_class, num_layers=2, hidden=64, drop=0.5, use_edge_weight=True):
+        super(TAG_Linear, self).__init__()
+        self.conv0 = TAGConv(num_feature, hidden,K=K)
+        self.conv1 = TAGConv(hidden, hidden,K=K)
         self.n_layer = num_layers
         self.linear = Linear(hidden, num_class)
         self.use_edge_weight = use_edge_weight
