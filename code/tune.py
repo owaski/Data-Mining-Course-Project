@@ -15,7 +15,7 @@ args.save = None
 max_acc = 0.0
 max_args = None
 
-for lr in tqdm(np.arange(-4, -2, 0.2)):
+for lr in tqdm(np.arange(-3, -0, 0.2)):
     for n_layer in [2]:
         for weight_decay in np.arange(-4, -1.9, 0.5):
             for drop in np.arange(0.1, 0.5, 0.1):

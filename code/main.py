@@ -4,15 +4,20 @@ import argparse
 
 import json
 
+import networkx as nx
+import node2vec
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from utils import preprocess, split, accuracy, DATASET_DIR
-from models import GCNNet, GCN_Linear, GATNet, TAGNet, SAGENet
+from models import FCNet, EdgeNet, GCNNet, GCN_Linear, GATNet, TAGNet, SAGENet
 from torch_geometric.data import Data
 
 MODEL_CLASS = {
+    'FC' : FCNet,
+    'Edge' : EdgeNet,
     'GCN' : GCNNet,
     'GCNL' : GCN_Linear,
     'GAT' : GATNet,
@@ -20,11 +25,19 @@ MODEL_CLASS = {
     'SAGE' : SAGENet,
 }
 
-def get_additional_features(config, edge_index, edge_attr):
+def get_additional_features(config, edge_index, edge_attr, args):
     data = torch.sparse.FloatTensor(edge_index, edge_attr.squeeze(1))
     features = []
     for i in range(data.size(0)):
         features.append(data[i].to_dense().cpu().tolist())
+
+    if args.node2vec:
+        nx_G = node2vec.read_graph(config, edge_index, edge_attr)
+        G = node2vec.Node2Vec(nx_G, True, 1., 1.)
+        G.preprocess_transition_probs()
+        walks = G.simulate_walks(10, 80)
+        node2vec.learn_embeddings(walks)
+
     return torch.tensor(features).float()
 
 
@@ -39,7 +52,7 @@ def main(args):
         config, features, edge_index, edge_attr, labels, train_mask, eval_mask, test_mask = torch.load(cache_path)
 
     if args.additional_features:
-        additional_features = get_additional_features(config, edge_index, edge_attr)
+        additional_features = get_additional_features(config, edge_index, edge_attr, args)
         features = torch.cat([features, additional_features], dim=-1)
         config['n_feature'] = features.size(1)
 
@@ -48,6 +61,7 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_class = MODEL_CLASS[args.model]
     model = model_class(num_feature=max(1, config['n_feature']), num_class=config['n_class'], num_layers=args.n_layer, hidden=args.hidden, drop=args.drop).to(device)
+    model.reset_parameters()
     data = data.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     model.train()
@@ -96,7 +110,7 @@ def main(args):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['GCN', 'GCNL', 'GAT', 'SAGE', 'TAG'])
+    parser.add_argument('--model', type=str, choices=['FC', 'Edge', 'GCN', 'GCNL', 'GAT', 'SAGE', 'TAG'])
     parser.add_argument('--save', type=str, default=None) # save dir
     parser.add_argument('--data', type=str, choices=['a', 'b', 'c', 'd', 'e'])
     parser.add_argument('--overwrite_cache', action='store_true')
@@ -107,6 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--drop', type=float, default=0.5)
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--additional_features', action='store_true')
+    parser.add_argument('--node2vec', action='store_true')
     args = parser.parse_args()
 
     print(main(args))
