@@ -2,13 +2,23 @@ import os
 import sys
 import argparse
 
+import json
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from utils import preprocess, split, accuracy, DATASET_DIR
-from models import GCNNet
+from models import GCNNet, GCN_Linear, GATNet, TAGNet, SAGENet
 from torch_geometric.data import Data
+
+MODEL_CLASS = {
+    'GCN' : GCNNet,
+    'GCNL' : GCN_Linear,
+    'GAT' : GATNet,
+    'TAG' : TAGNet,
+    'SAGE' : SAGENet,
+}
 
 def get_additional_features(config, edge_index, edge_attr):
     data = torch.sparse.FloatTensor(edge_index, edge_attr.squeeze(1))
@@ -36,7 +46,8 @@ def main(args):
     data = Data(x=features,edge_index=edge_index, edge_attr=edge_attr, y=labels, train_mask=train_mask, test_mask=test_mask, eval_mask=eval_mask)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = GCNNet(num_feature=max(1, config['n_feature']), num_class=config['n_class'], num_layers=args.n_layer, hidden=args.hidden, drop=args.drop).to(device)
+    model_class = MODEL_CLASS[args.model]
+    model = model_class(num_feature=max(1, config['n_feature']), num_class=config['n_class'], num_layers=args.n_layer, hidden=args.hidden, drop=args.drop).to(device)
     data = data.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     model.train()
@@ -63,16 +74,30 @@ def main(args):
                 max_eval_epoch = epoch
             elif epoch - max_eval_epoch >= 10:
                 break
+            model.train()
     
+    with torch.no_grad():
+        model.eval()
+        out3 = model(data)
+        train_acc = accuracy(out3[data.train_mask], data.y[data.train_mask])
+
     with torch.no_grad():
         model.eval()
         out3 = model(data)
         test_acc = accuracy(out3[data.test_mask], data.y[data.test_mask])
 
+    if args.save is not None:
+        os.makedirs(args.save, exist_ok=True)
+        torch.save(model, os.path.join(args.save, 'model.pt'))
+        with open(os.path.join(args.save, 'config.json'), 'w') as w:
+            json.dump(vars(args), w, indent='\t')
+
     return train_acc, cur_eval_acc, test_acc
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, choices=['GCN', 'GCNL', 'GAT', 'SAGE', 'TAG'])
+    parser.add_argument('--save', type=str, default=None) # save dir
     parser.add_argument('--data', type=str, choices=['a', 'b', 'c', 'd', 'e'])
     parser.add_argument('--overwrite_cache', action='store_true')
     parser.add_argument('--maxepoch', type=int, default=200)
