@@ -4,11 +4,12 @@ import random
 from gensim.models import Word2Vec
 
 class Node2Vec():
-	def __init__(self, nx_G, is_directed, p, q):
+	def __init__(self, nx_G, is_directed, p, q, verbose=True):
 		self.G = nx_G
 		self.is_directed = is_directed
 		self.p = p
 		self.q = q
+		self.verbose = verbose
 
 	def node2vec_walk(self, walk_length, start_node):
 		'''
@@ -43,9 +44,11 @@ class Node2Vec():
 		G = self.G
 		walks = []
 		nodes = list(G.nodes())
-		print('Walk iteration:')
+		if self.verbose:
+			print('Walk iteration:')
 		for walk_iter in range(num_walks):
-			print(str(walk_iter+1), '/', str(num_walks))
+			if self.verbose:
+				print(str(walk_iter+1), '/', str(num_walks))
 			random.shuffle(nodes)
 			for node in nodes:
 				walks.append(self.node2vec_walk(walk_length=walk_length, start_node=node))
@@ -156,9 +159,9 @@ def read_graph(config, edge_index, edge_attr):
 	G = nx.DiGraph()
 	G.add_nodes_from(range(config['n_vertex']))
 	for i in range(config['n_edge']):
-		u = edge_index[0][i]
-		v = edge_index[1][i]
-		w = edge_attr[i]
+		u = edge_index[0][i].item()
+		v = edge_index[1][i].item()
+		w = edge_attr[i].item()
 		G.add_edge(u, v, weight=w)
 
 	return G
@@ -167,7 +170,10 @@ def learn_embeddings(walks):
 	'''
 	Learn embeddings by optimizing the Skipgram objective using SGD.
 	'''
-	walks = [map(str, walk) for walk in walks]
+	tmp = []
+	for i, walk in enumerate(walks):
+		tmp.append(map(str, walk))
+	walks = [list(map(str, walk)) for walk in walks]
 	model = Word2Vec(walks, size=128, window=10, min_count=0, sg=1, workers=8, iter=1)
 	
-	return 
+	return model

@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+from tqdm import tqdm
 
 import json
 
@@ -27,22 +28,33 @@ MODEL_CLASS = {
 
 def get_additional_features(config, edge_index, edge_attr, args):
     data = torch.sparse.FloatTensor(edge_index, edge_attr.squeeze(1))
-    features = []
-    for i in range(data.size(0)):
-        features.append(data[i].to_dense().cpu().tolist())
+    features = [[] for i in range(config['n_vertex'])]
+
+    # for i in range(data.size(0)):
+    #     features.append(data[i].to_dense().cpu().tolist())
 
     if args.node2vec:
-        nx_G = node2vec.read_graph(config, edge_index, edge_attr)
-        G = node2vec.Node2Vec(nx_G, True, 1., 1.)
-        G.preprocess_transition_probs()
-        walks = G.simulate_walks(10, 80)
-        node2vec.learn_embeddings(walks)
+        cache_path = os.path.join(DATASET_DIR, args.data, 'embedding.pt')
+        if not os.path.exists(cache_path) or args.overwrite_cache:
+            nx_G = node2vec.read_graph(config, edge_index, edge_attr)
+            G = node2vec.Node2Vec(nx_G, True, 1., 1., args.verbose)
+            G.preprocess_transition_probs()
+            walks = G.simulate_walks(40, 10)
+            embedding = node2vec.learn_embeddings(walks)
+            embeddings = []
+            for i in range(config['n_vertex']):
+                embeddings.append(embedding.wv[str(i)].tolist())
+            torch.save(embeddings, cache_path)
+        else:
+            embeddings = torch.load(cache_path)
+
+        for i in range(config['n_vertex']):
+            features[i] += embeddings[i]
 
     return torch.tensor(features).float()
 
 
 def main(args):
-    
     cache_path = os.path.join(DATASET_DIR, args.data, 'cache.pt')
     if not os.path.exists(cache_path) or args.overwrite_cache:
         config, features, edge_index, edge_attr, labels, train_mask, test_mask = preprocess(args.data)
@@ -68,7 +80,8 @@ def main(args):
 
     max_eval_acc = 0.0
     max_eval_epoch = -1
-    for epoch in range(args.maxepoch):
+    iterator = tqdm(range(args.maxepoch)) if args.verbose else range(args.maxepoch)
+    for epoch in iterator:
         # print("range"+epoch)
         optimizer.zero_grad()
         out1 = model(data)
@@ -122,6 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--additional_features', action='store_true')
     parser.add_argument('--node2vec', action='store_true')
+    parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
 
     print(main(args))

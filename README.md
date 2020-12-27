@@ -36,3 +36,8 @@ Example of local running:
 ```
 python ./code/main.py --data a
 ```
+
+## Ideas
+
+* node2vec - failed
+* nodes with degree 1 / 2

@@ -9,13 +9,15 @@ args.model = input('model: ')
 args.data = input('data: ')
 args.overwrite_cache = False
 args.maxepoch = 200
-args.additional_features = True if args.data == 'e' else False
+args.additional_features = True
+args.node2vec = True
 args.save = None
+args.verbose = False
 
 max_acc = 0.0
 max_args = None
 
-for lr in tqdm(np.arange(-3, -0, 0.2)):
+for lr in tqdm(np.arange(-4, -2, 0.2)):
     for n_layer in [2]:
         for weight_decay in np.arange(-4, -1.9, 0.5):
             for drop in np.arange(0.1, 0.5, 0.1):
@@ -32,6 +34,8 @@ for lr in tqdm(np.arange(-3, -0, 0.2)):
                         max_args = args
                         print(train_acc, max_acc, test_acc, max_args)
                     # print(lr, n_layer, weight_decay, drop, hidden)
+
+exit(0)
 
 # GCN
 # a: acc = 0.872, lr = 0.0063, drop = 0.2, n_layer = 2, weight_decay = 1e-2
